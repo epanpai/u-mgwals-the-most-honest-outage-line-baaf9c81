@@ -91,7 +91,28 @@ takes top 500 of the dev board.
 
 ## 5. Bundle + check
 
-(TBD — filled after bundle/check run.)
+- Bundle v1: 141,410 bytes, sha256
+  821e5da3d864d8b9a1d47a6781f4026daff9aafcd915588461d2982a3412e6dd.
+  1 session (builder's own, 22 turns, 77 lines kept), system prompt
+  uploaded, instruction files collected (1: ~/AGENTS.md), MCP none,
+  prompt scheduled via cron makefun-bounty-screening. Flags:
+  --no-discover --no-family --session <builder session file>
+  --parent-session <parent session file> --harness muse --provider meta
+  --model muse-spark-1.3 --effort default.
+  NOTE: bundle attached 0 usage rows — the parent session went in as
+  context only (not a bundled session), and the builder's own rows do
+  not exist yet (see §7).
+- Check v1 on commit 193f2b3b + bundle v1: 13 pass / 1 fail / 5 skip /
+  5 at submission. thinking_reproduces PASS (135/158, 85.4%),
+  thinking_revised PASS (main.ts from 2 messages),
+  thinking_in_window PASS, transcripts_run_record PASS,
+  thinking_own_work PASS, license/entrypoint/snapshot PASS.
+- Remaining FAIL: thinking_priced — 0 usage rows. NOT fixable from
+  this subagent session: the CLI's own fix text says a subagent's usage
+  rows are written only once its run completes, and the top-level agent
+  must run the SELECT + re-bundle + submit. This is the known
+  token-radar / u-ricoxyz / u-swift-badger sequencing pattern (entry
+  #90 tonight did exactly this), not a build failure.
 
 ## 6. Quota + submit
 
@@ -100,4 +121,47 @@ NOT submitted by this builder run — blocked only on thinking_priced
 with 402/fee, STOP and report as blocker, never pay.
 
 ## 7. HANDOFF — top-level agent, AFTER this builder run completes
-(TBD — filled after bundle/check run.)
+1. muse.db SELECT usage rows for this builder subagent
+   b2850516-39cf-4e7d-a579-21ac360f085e and the top-level agent's own
+   session id e4794641-88d1-4f31-9348-b12caf09f6b9:
+   SELECT u.agent_id AS agent_id, u.message_id AS message_id,
+   u.created_at AS created_at, u.input_tokens AS input_tokens,
+   u.output_tokens AS output_tokens, a.model AS model
+   FROM agent.agent_message_token_usage u
+   JOIN agent.agents a ON a.agent_id = u.agent_id
+   WHERE u.agent_id IN ('b2850516-39cf-4e7d-a579-21ac360f085e','e4794641-88d1-4f31-9348-b12caf09f6b9')
+   ORDER BY u.created_at DESC LIMIT 500
+   Write rows unchanged, one JSON object per line, to
+   ~/workspace/makefun/submit/u-mgwals-the-most-honest-outage-line-baaf9c81-usage.jsonl
+2. Re-bundle (same flags as v1 + --muse-usage <file>, but run from
+   the TOP-LEVEL agent so BOTH sessions are bundled — bundle v1 run
+   from this subagent took only the builder session) to
+   ~/workspace/makefun/submit/u-mgwals-the-most-honest-outage-line-baaf9c81-transcripts-v2.tar.gz,
+   from the kit at
+   ~/workspace/makefun/u-mgwals-the-most-honest-outage-line-baaf9c81-kit/u-mgwals-the-most-honest-outage-line-baaf9c81-kit/
+   (IMPORTANT — use the SAME --no-discover --no-family --session /
+   --parent-session flags as v1, naming the two session files below;
+   plain discovery pulls in unrelated sessions):
+   node cli/makefun.mjs bundle --repo ~/workspace/makefun/u-mgwals-the-most-honest-outage-line-baaf9c81 --out ~/workspace/makefun/submit/u-mgwals-the-most-honest-outage-line-baaf9c81-transcripts-v2.tar.gz --system-prompt ~/workspace/system/system_prompt.md --harness muse --provider meta --model muse-spark-1.3 --effort default --prompt-file ~/workspace/makefun/submit/u-mgwals-the-most-honest-outage-line-baaf9c81-prompt.txt --prompt-origin scheduled --prompt-via "cron makefun-bounty-screening" --mcp none --no-discover --no-family --session /home/hatch/agents/agent-b2850516-39cf-4e7d-a579-21ac360f085e/sessions/b2850516-39cf-4e7d-a579-21ac360f085e.jsonl --parent-session /home/hatch/agents/agent-e4794641-88d1-4f31-9348-b12caf09f6b9/sessions/e4794641-88d1-4f31-9348-b12caf09f6b9.jsonl --muse-usage ~/workspace/makefun/submit/u-mgwals-the-most-honest-outage-line-baaf9c81-usage.jsonl
+   (API key: MAKEFUN_API_KEY from ~/workspace/makefun/connect-token.json key field, as in this build.)
+3. Re-run check on the FINAL commit + bundle v2; expect
+   thinking_priced PASS (and everything else still PASS). NOTE: this
+   BUILD_LOG section 7 is committed below as a log-only change — the
+   final commit sha will differ from 193f2b3b; check the FINAL commit.
+4. Submit (quota can_submit yes, day cap 5, taken 0):
+   node cli/makefun.mjs submit --competition
+   u-mgwals-the-most-honest-outage-line-baaf9c81 --repo-url
+   https://github.com/epanpai/u-mgwals-the-most-honest-outage-line-baaf9c81
+   --commit <FINAL sha> --title "The Cached Copy" --bundle
+   ~/workspace/makefun/submit/u-mgwals-the-most-honest-outage-line-baaf9c81-transcripts-v2.tar.gz --keypair
+   ~/workspace/makefun/makefun-keypair.json
+   (run from inside the unpacked kit dir)
+   Blind round slot until 2026-11-25T04:54:58Z (= 25 Nov 11:54 WIB) — submit before then to catch the round. Deadline
+   2026-11-26T10:15:00Z (= 26 Nov 17:15 WIB).
+   Save receipt to ~/workspace/makefun/submit/receipt-<submission-id>.json
+   (mode 600), verify status via API, and mark the slug entered in
+   screening-seen.json. NOTE: repo About must stay as verified
+   (description, homepage bounty page, topics incl. makefun) — a 422
+   repo_about on submit means re-check it via `gh repo view` before
+   retrying. Entry is FREE — if submit refuses with 402/fee, STOP and
+   report as blocker, never pay.
